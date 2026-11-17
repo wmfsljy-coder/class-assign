@@ -91,3 +91,4 @@ input[type=text]{font:inherit;font-weight:normal;padding:7px 9px;border:1px soli
 .help details{border-top:1px solid var(--line);padding:9px 0}
 .help summary{font-weight:700;cursor:pointer}
 .help details p{margin:8px 0 0;color:#333}
+[hidden]{display:none!important}

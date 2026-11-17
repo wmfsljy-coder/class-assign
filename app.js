@@ -563,7 +563,7 @@
     schools.forEach(([sc, cnt, off]) => { for (let i = 0; i < cnt; i++) { n++; const p = Math.min(99.9, Math.max(0.3, R() * 100 + off * (R() - 0.3))); rows.push([n, n, pick(sur) + pick(g1) + pick(g2), R() < 0.5 ? '남' : '여', sc, Math.round(p * 100) / 100, tel(), '']); } });
     rows[12][2] = rows[80][2]; rows[40][2] = rows[150][2];          // 동명이인
     rows[21][6] = rows[22][6]; rows[22][2] = rows[21][2][0] + '다' + '은'; // 형제자매
-    rows[100][6] = rows[133][6];
+    rows[100][6] = rows[133][6]; rows[133][2] = rows[100][2][0] + '하' + '린';
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), '접수대장(예시)');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['순번', '성명', '성별', '출신학교', '보호자 연락처', '비고'], [1, '노하준', '남', '가람중', tel(), '특수교육대상자'], [2, '문서아', '여', '다솜중', tel(), '특수교육대상자'], [3, '배지호', '남', '나래중', tel(), '특수교육대상자']]), '정원 외');
@@ -595,6 +595,7 @@
   $('#showScore').addEventListener('change', () => { if (S.result) renderRoster(); });
   window.addEventListener('beforeunload', e => { if (S.result) { e.preventDefault(); e.returnValue = ''; } });
 })();
+
 
 
 
