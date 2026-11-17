@@ -8,6 +8,7 @@ html = html.replace(/<link rel="stylesheet" href="app\.css[^"]*">/, () => '<styl
 html = html.replace(/<a class="btn ghost small" id="offlineLink"[^>]*>[^<]*<\/a>/, '');
 html = html.replace(/<script src="vendor\/xlsx\.bundle\.js[^"]*"><\/script>/, () => '<script>\n' + js(read('./vendor/xlsx.bundle.js')) + '\n</script>');
 html = html.replace(/<script src="engine\.js[^"]*"><\/script>/, () => '<script>\n' + js(read('./engine.js')) + '\n</script>');
+html = html.replace(/<script src="calib\.js[^"]*"><\/script>/, () => '<script>\n' + js(read('./calib.js')) + '\n</script>');
 html = html.replace(/<script src="app\.js[^"]*"><\/script>/, () => '<script>\nwindow.__OFFLINE__=true;\n' + js(read('./app.js')) + '\n</script>');
 html = html.replace('<title>신입생 반편성 도우미</title>', '<title>신입생 반편성 도우미 (오프라인)</title>');
 fs.mkdirSync(new URL('./offline/', import.meta.url), { recursive: true });

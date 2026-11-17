@@ -92,3 +92,11 @@ input[type=text]{font:inherit;font-weight:normal;padding:7px 9px;border:1px soli
 .help summary{font-weight:700;cursor:pointer}
 .help details p{margin:8px 0 0;color:#333}
 [hidden]{display:none!important}
+.row-btns.left{justify-content:flex-start}
+.calib{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px;background:#fafbfd}
+.calib-t{font-weight:700;margin:0 0 4px}
+.calib .hint{margin:4px 0}
+.calib-dir{margin:10px 0 4px}
+.calib table{margin:0}
+td.okc{color:var(--ok);font-weight:800}
+.sub{color:var(--sub)}

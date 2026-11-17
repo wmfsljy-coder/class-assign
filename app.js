@@ -117,6 +117,7 @@
     renderPreview();
     $('#step2').hidden = !(S.map.name >= 0 && S.map.sex >= 0 && S.map.school >= 0 && S.map.score >= 0 && st.length);
     if (!$('#step2').hidden) { suggestK(); refreshAutoPairs(); }
+    if (S.calib) renderCalib();
   }
 
   function renderPreview() {
@@ -242,6 +243,123 @@
     return !errs.length && !ferr.length && !aerr.length && !terr;
   }
 
+  // ---------- 지난 입학생 자료로 보정값 계산 ----------
+  function guessCalib(h) {
+    const find = (...tests) => { for (const t of tests) { const i = h.findIndex(t); if (i >= 0) return i; } return -1; };
+    const SC = /성적|백분율|석차|내신|점수|등급|평균|환산|등수/;
+    const school = find(x => x.includes('출신'), x => /중학교$/.test(x), x => x === '학교' || x === '학교명' || x === '중학교명');
+    const mid = find(x => x !== h[school] && /중학|중학교|^중/.test(x) && SC.test(x), x => /내신|입학성적|입시/.test(x) && !/고교|고등|고1/.test(x));
+    const high = find(x => /고교|고등|고1|고일|입학후|1학년/.test(x) && !/중학/.test(x) && SC.test(x), x => /학년말|고교|고1/.test(x));
+    const year = find(x => /연도|학년도|년도|입학년/.test(x));
+    return { school, mid: mid === school ? -1 : mid, high: (high === mid || high === school) ? -1 : high, year };
+  }
+
+  function readCalibBook(wb) {
+    const recs = [], info = [], errs = [];
+    wb.SheetNames.forEach(name => {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: true, blankrows: false });
+      let hi = -1, m = null;
+      for (let i = 0; i < Math.min(rows.length, 20); i++) {
+        const g = guessCalib(rows[i].map(normH));
+        if (g.school >= 0 && g.mid >= 0 && g.high >= 0) { hi = i; m = g; break; }
+      }
+      if (hi < 0) { if (rows.length) errs.push(`"${name}" 시트: 출신학교·중학교 성적·고1 성적 열을 찾지 못해 건너뛰었어요.`); return; }
+      const raw = rows[hi].map(c => String(c == null ? '' : c).replace(/\s*\n\s*/g, ' ').trim());
+      let n = 0, skip = 0;
+      rows.slice(hi + 1).forEach(r => {
+        const school = r[m.school], mid = toNum(r[m.mid]), high = toNum(r[m.high]);
+        if (String(school).trim() === '' && mid == null && high == null) return;
+        if (String(school).trim() === '' || mid == null || high == null) { skip++; return; }
+        const y = m.year >= 0 && String(r[m.year]).trim() !== '' ? String(r[m.year]).trim() : name;
+        recs.push({ year: y, school: normSchool(school), mid, high }); n++;
+      });
+      info.push(`"${name}" 시트 ${n}명 (${raw[m.school]} / ${raw[m.mid]} / ${raw[m.high]}${m.year >= 0 ? ' / ' + raw[m.year] : ''})${skip ? ` · 빈칸 있는 ${skip}줄 버림` : ''}`);
+    });
+    return { recs, info, errs };
+  }
+
+  async function loadCalibFile(file) {
+    let wb;
+    try { wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false }); } catch (e) { alert('파일을 읽지 못했어요.\n' + e.message); return; }
+    S.calib = Object.assign(readCalibBook(wb), { fileName: file.name });
+    renderCalib();
+  }
+
+  function renderCalib() {
+    const C = S.calib, out = $('#calibOut');
+    if (!C) { out.innerHTML = ''; return; }
+    const head = `<p class="filename">지난 자료: ${esc(C.fileName)}</p>` +
+      (C.info.length ? `<p class="hint">${C.info.map(esc).join('<br>')}</p>` : '') +
+      (C.errs.length ? `<p class="warn">${C.errs.map(esc).join('\n')}</p>` : '');
+    if (!C.recs.length) { out.innerHTML = head + '<p class="warn">읽은 학생이 없어요. 제목 줄에 출신학교, 중학교 성적, 고1 성적이 있는지 확인해 주세요. 계산용 양식을 받아 써도 돼요.</p>'; return; }
+    const r = Calib.compute(C.recs, { midLow: radio('dir') === 'low', highLow: radio('calibDir') === 'low' });
+    C.result = r;
+    if (!r.ok) { out.innerHTML = head + `<p class="warn">${esc(r.error)}</p>` + (r.warnings || []).map(w => `<p class="hint">${esc(w)}</p>`).join(''); return; }
+    const now = {}; (S.students || []).forEach(s => { if (!s.extra) now[s.school] = (now[s.school] || 0) + 1; });
+    const hasNow = Object.keys(now).length > 0;
+    const V = { clear: ['뚜렷함', 'ok'], weak: ['우연일 수 있음', ''], few: ['자료 적음', ''] };
+    const sign = v => (v > 0 ? '+' : '') + fmt(v, 1);
+    let t = '<div class="tablewrap"><table><tr><th>출신학교</th><th>지난 자료<br>학생 수</th><th>고1 등수 차이<br><small>(같은 내신 대비, %)</small></th><th>해마다<br>같은 방향</th><th>판단</th><th>보정값</th>' + (hasNow ? '<th>올해<br>명단</th>' : '') + '</tr>';
+    r.schools.forEach(s => {
+      const v = V[s.verdict];
+      t += `<tr><td class="l">${esc(s.school)}</td><td>${s.n}</td><td>${sign(s.mean)}</td><td>${s.yearsTotal >= 2 ? s.yearsSame + '/' + s.yearsTotal + '년' : '-'}</td><td class="${v[1] ? 'okc' : 'sub'}">${v[0]}</td><td><b>${s.verdict === 'clear' ? sign(s.value) : '<span class="sub">' + sign(s.value) + '</span>'}</b></td>` + (hasNow ? `<td>${now[s.school] ? now[s.school] + '명' : '<span class="sub">없음</span>'}</td>` : '') + '</tr>';
+    });
+    t += '</table></div>';
+    const missing = hasNow ? Object.keys(now).filter(k => !r.schools.some(s => s.school === k)) : [];
+    const pick = r.schools.filter(s => s.verdict === 'clear' && Math.abs(s.value) >= 0.5 && (!hasNow || now[s.school]));
+    const facts = `<div class="preview"><div class="facts"><span>계산한 학생 ${r.N}명</span><span>${r.years.map(y => esc(y.year) + ' ' + y.n + '명').join(' · ')}</span><span>중학교→고1 성적 상관 ${fmt(r.r, 2)}</span><span>학교 사이 실제 차이 약 ${fmt(r.tau, 1)}%</span></div></div>`;
+    const note = r.tau < 0.05
+      ? '<ul class="msgs"><li class="ok">학교마다 보이는 차이가 우연으로 생길 수 있는 크기예요. 보정하지 않고 출신 중학교만 고르게 나누는 것을 권해요.</li></ul>'
+      : `<p class="hint">· <b>고1 등수 차이</b>: 중학교 성적이 같은 학생과 비교해 고1 학년 등수(백분율)가 평균 몇 % 앞섰는지(+) 뒤졌는지(−)예요.<br>· <b>보정값</b>: 학생 수가 적을수록 0 쪽으로 줄여 중학교 성적 단위로 바꾼 값이에요(최대 ±15%). <b>뚜렷함</b>(학생 10명 이상, 우연으로 보기 어렵고, 해마다 방향이 같음)인 학교만 넣기를 권해요.</p>`;
+    const btn = r.tau >= 0.05 ? (pick.length
+      ? `<div class="row-btns left"><button class="btn primary small" id="calibApply" type="button">뚜렷한 학교 ${pick.length}곳 보정값을 아래 칸에 넣기</button></div>`
+      : '<p class="hint">뚜렷한 학교가 없어서 넣을 보정값이 없어요. 보정하지 않는 것을 권해요.</p>') : '';
+    out.innerHTML = head + facts + t + note + btn +
+      (missing.length ? `<p class="hint">올해 명단에 있지만 지난 자료에 없는 학교: ${esc(missing.join(', '))} (보정 없이 배정)</p>` : '') +
+      (r.warnings.length ? `<p class="hint">${r.warnings.map(esc).join('<br>')}</p>` : '');
+    S.calibPick = pick;
+  }
+
+  function applyCalib() {
+    const pick = S.calibPick || [];
+    if (!pick.length) return;
+    const ta = $('#adjust');
+    if (ta.value.trim() && !confirm('보정 칸에 이미 적힌 내용을 계산 결과로 바꿀까요?')) return;
+    ta.value = pick.map(s => `${s.school} = ${s.value > 0 ? '+' : ''}${fmt(s.value, 1)}`).join('\n');
+    if (S.students.length) parseManual();
+    ta.focus();
+  }
+
+  function calibDemo() {
+    let seed = 20231117; const R = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    const N = () => { let u = 0; for (let i = 0; i < 12; i++) u += R(); return u - 6; };
+    // 가상 학교 효과: 가람중은 같은 내신이면 고교에서 더 잘하고, 나래중은 덜 한다
+    const schools = [['가람중', 48, 0.45], ['나래중', 37, -0.45], ['다솜중', 31, 0], ['라온중', 25, 0.05], ['마루중', 21, -0.1], ['바다중', 13, 0], ['사랑중', 6, 0.2]];
+    const wb = XLSX.utils.book_new();
+    [2023, 2024, 2025].forEach(y => {
+      const list = [];
+      schools.forEach(([sc, cnt, eff]) => { for (let i = 0; i < cnt; i++) { const ab = N(); list.push({ sc, mid: ab + 0.55 * N(), high: ab + eff + 0.55 * N() }); } });
+      const rk = (k) => { const o = list.map((x, i) => i).sort((a, b) => list[b][k] - list[a][k]); const p = []; o.forEach((idx, r) => p[idx] = Math.round((r + 0.5) / list.length * 10000) / 100); return p; };
+      const mp = rk('mid'), hp = rk('high');
+      const rows = [['출신학교', '중학교 성적(백분율)', '고1 성적(학년 석차 백분율)']].concat(list.map((x, i) => [x.sc, mp[i], hp[i]]));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), String(y));
+    });
+    $('input[name=calibDir][value=low]').checked = true;
+    S.calib = Object.assign(readCalibBook(wb), { fileName: '예시 지난 자료(가상, 3년).xlsx' });
+    renderCalib();
+  }
+
+  function calibTemplate() {
+    const wb = XLSX.utils.book_new();
+    const a = XLSX.utils.aoa_to_sheet([['입학연도', '출신학교', '중학교 성적(백분율)', '고1 성적(학년 석차 백분율)'], [2024, '○○중', 12.5, 20.3], [2024, '△△중', 33.4, 28.1], [2025, '○○중', 41.0, 37.6]]);
+    styleAll(a, [0]); a['!cols'] = [10, 12, 18, 24].map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, a, '지난 입학생');
+    const b = XLSX.utils.aoa_to_sheet([['쓰는 법'], ['한 줄에 학생 한 명. 이름은 필요 없어요.'], ['중학교 성적은 올해 반편성 명단과 같은 종류(예: 학년석차 백분율)로 넣어 주세요.'], ['고1 성적은 석차, 백분율, 등급 평균, 점수 모두 됩니다. 화면에서 낮을수록/높을수록 우수를 골라 주세요.'], ['해마다 시트를 나눠도 되고(시트 이름이 연도가 됩니다), 한 시트에 입학연도 열을 둬도 됩니다.'], ['전학·자퇴로 고1 성적이 없는 학생은 빼거나 칸을 비워 두면 됩니다.']]);
+    b['!cols'] = [{ wch: 90 }];
+    XLSX.utils.book_append_sheet(wb, b, '쓰는 법');
+    XLSX.writeFile(wb, '보정값 계산용 양식.xlsx');
+  }
+
   // ---------- 실행 ----------
   let worker = null;
   function getWorker() {
@@ -352,7 +470,7 @@
     const chip = (k, v, cls) => `<div class="chip ${cls}"><div class="k">${k}</div><div class="v">${v}</div></div>`;
     const dirLow = radio('dir') === 'low';
     $('#summary').innerHTML =
-      chip('반 평균 성적 차이 (최고-최저)', fmt(muR), muR <= X.gsd * 0.05 ? 'ok' : muR <= X.gsd * 0.15 ? 'mid' : 'bad') +
+      chip(Object.keys(S.adjust || {}).length ? '반 평균 성적 차이 (보정 전 원래 성적)' : '반 평균 성적 차이 (최고-최저)', fmt(muR), muR <= X.gsd * 0.05 ? 'ok' : muR <= X.gsd * 0.15 ? 'mid' : 'bad') +
       chip('남녀 수 반 간 차이', sexR + '명', sexR <= 1 ? 'ok' : sexR <= 2 ? 'mid' : 'bad') +
       chip('같은 중학교 반 간 최대 차이', schMax + '명', schMax <= 1 ? 'ok' : schMax <= 2 ? 'mid' : 'bad') +
       chip('나누기 조건', bad ? `${bad}건 어긋남` : `${ck.length}건 모두 지킴`, bad ? 'bad' : 'ok');
@@ -593,6 +711,11 @@
   $('#roster').addEventListener('change', e => { const id = e.target.dataset.id; if (id == null) return; S.students[+id].cls = +e.target.value; renderResult(); });
   document.querySelectorAll('input[name=numbering]').forEach(r => r.addEventListener('change', () => { if (S.result) renderResult(); }));
   $('#showScore').addEventListener('change', () => { if (S.result) renderRoster(); });
+  $('#calibFile').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadCalibFile(f); e.target.value = ''; });
+  $('#calibTpl').addEventListener('click', calibTemplate);
+  $('#calibDemo').addEventListener('click', calibDemo);
+  $('#calibOut').addEventListener('click', e => { if (e.target.id === 'calibApply') applyCalib(); });
+  document.querySelectorAll('input[name=calibDir], input[name=dir]').forEach(r => r.addEventListener('change', () => { if (S.calib) renderCalib(); }));
   window.addEventListener('beforeunload', e => { if (S.result) { e.preventDefault(); e.returnValue = ''; } });
 })();
 
