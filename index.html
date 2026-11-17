@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; worker-src 'self'; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>신입생 반편성 도우미</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <h1>신입생 반편성 도우미</h1>
+    <p class="lead">성적은 반마다 고르게, 동명이인·형제자매·남녀 성비·출신 중학교는 나눠서 배정해요.</p>
+    <p class="privacy"><b>개인정보 안내</b> 올린 파일은 이 컴퓨터의 브라우저 안에서만 처리돼요. 서버로 보내거나 저장하지 않고, 창을 닫으면 사라져요.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- 1단계 -->
+  <section class="card" id="step1">
+    <h2><span class="num">1</span> 명단 파일 올리기</h2>
+    <div class="drop" id="drop">
+      <p><b>엑셀 파일(.xls, .xlsx)</b>을 여기로 끌어다 놓거나</p>
+      <label class="btn primary">파일 고르기<input type="file" id="file" accept=".xls,.xlsx,.xlsm,.csv" hidden></label>
+      <p class="hint">필요한 열: 성명, 성별, 출신학교, 성적(학년석차 백분율 등). 있으면 더 좋은 열: 보호자 연락처(형제자매 찾기), 수험번호, 비고.</p>
+      <div class="row-btns"><button class="btn ghost small" id="tplBtn" type="button">빈 양식 내려받기</button><button class="btn ghost small" id="demoBtn" type="button">예시 자료로 연습해 보기</button><a class="btn ghost small" id="offlineLink" href="offline/class-assign-offline.html" download="반편성 도우미(오프라인).html">오프라인용 파일 내려받기</a></div>
+    </div>
+    <div id="mapping" hidden>
+      <p class="filename" id="fileName"></p>
+      <div class="grid2">
+        <label>학생 명단 시트<select id="mainSheet"></select></label>
+        <label>정원 외 학생 시트 (특수교육대상자 등, 성적 없이 배정)<select id="extraSheet"></select></label>
+      </div>
+      <h3>열 맞추기 <small>자동으로 찾았어요. 틀리면 바꿔 주세요.</small></h3>
+      <div class="grid4" id="colMap"></div>
+      <div id="preview"></div>
+    </div>
+  </section>
+
+  <!-- 2단계 -->
+  <section class="card" id="step2" hidden>
+    <h2><span class="num">2</span> 조건 고르기</h2>
+    <div class="opts">
+      <div class="opt">
+        <label class="lbl" for="K">학급 수</label>
+        <div><input type="number" id="K" min="2" max="30" value="7"> 개 반 <span class="hint" id="perClass"></span></div>
+      </div>
+      <div class="opt">
+        <label class="lbl" for="targets">반별 인원 직접 정하기 <small>선택</small></label>
+        <div>
+          <input type="text" id="targets" placeholder="비워 두면 고르게. 예) 28, 31, 31, 31, 31, 31, 32">
+          <div class="hint">특수교육대상자가 있는 반을 줄이는 등 반마다 인원을 다르게 할 때만 적어요. 정원 외 학생까지 포함한 총원이에요.</div>
+          <div class="warn" id="targetsMsg"></div>
+        </div>
+      </div>
+      <div class="opt">
+        <span class="lbl">성적 기준</span>
+        <div class="seg" id="dir">
+          <label><input type="radio" name="dir" value="low" checked>낮을수록 우수 (백분율·석차)</label>
+          <label><input type="radio" name="dir" value="high">높을수록 우수 (점수)</label>
+        </div>
+      </div>
+      <div class="opt">
+        <label class="lbl" for="tiers">성적 구간 수</label>
+        <div><input type="number" id="tiers" min="2" max="30" value="10"> 구간 <span class="hint">성적순으로 구간을 나누고, 구간마다 반에 같은 수씩 넣어요. 상위권·하위권이 한 반에 몰리지 않아요.</span></div>
+      </div>
+      <div class="opt">
+        <span class="lbl">남녀 성비 맞추기</span>
+        <div class="seg">
+          <label><input type="radio" name="sexLevel" value="strong" checked>강하게</label>
+          <label><input type="radio" name="sexLevel" value="normal">보통</label>
+          <label><input type="radio" name="sexLevel" value="off">안 함</label>
+        </div>
+      </div>
+      <div class="opt">
+        <span class="lbl">출신 중학교 나누기</span>
+        <div class="seg">
+          <label><input type="radio" name="schoolLevel" value="strong" checked>강하게</label>
+          <label><input type="radio" name="schoolLevel" value="normal">보통</label>
+          <label><input type="radio" name="schoolLevel" value="off">안 함</label>
+        </div>
+      </div>
+      <div class="opt">
+        <span class="lbl">다른 반으로 나누기</span>
+        <div class="checks">
+          <label><input type="checkbox" id="sameName" checked>동명이인</label>
+          <label><input type="checkbox" id="sibling" checked>형제자매 (보호자 연락처가 같은 학생)</label>
+          <div class="hint" id="autoPairsInfo"></div>
+        </div>
+      </div>
+      <div class="opt">
+        <label class="lbl" for="manualPairs">같은 반이 되면 안 되는 학생 <small>직접 입력</small></label>
+        <div>
+          <textarea id="manualPairs" rows="3" placeholder="한 줄에 한 묶음. 예) 홍길동, 김철수&#10;동명이인은 학교를 붙여 주세요. 예) 김민지(○○중), 이민호"></textarea>
+          <div class="hint">학교폭력 관련 분리, 연락처가 다른 쌍둥이 등. 한 줄에 3명 이상 적으면 서로 모두 다른 반이 돼요.</div>
+          <div class="warn" id="manualPairsMsg"></div>
+        </div>
+      </div>
+      <div class="opt">
+        <label class="lbl" for="fixed">반을 정해 둘 학생 <small>직접 입력</small></label>
+        <div>
+          <textarea id="fixed" rows="2" placeholder="한 줄에 한 명. 예) 홍길동 = 3"></textarea>
+          <div class="warn" id="fixedMsg"></div>
+        </div>
+      </div>
+      <div class="opt">
+        <span class="lbl">정원 외·성적 없는 학생</span>
+        <div class="seg">
+          <label><input type="radio" name="extraMode" value="spread" checked>반마다 1명씩 나눠 배치</label>
+          <label><input type="radio" name="extraMode" value="gather">한 반에 모아 배치</label>
+          <span id="gatherBox" hidden><input type="number" id="gatherClass" min="1" value="1"> 반</span>
+        </div>
+      </div>
+      <div class="opt">
+        <span class="lbl">반 안 번호 매기기</span>
+        <div class="seg">
+          <label><input type="radio" name="numbering" value="name" checked>가나다순</label>
+          <label><input type="radio" name="numbering" value="female">여학생 먼저, 가나다순</label>
+          <label><input type="radio" name="numbering" value="male">남학생 먼저, 가나다순</label>
+        </div>
+      </div>
+      <div class="opt">
+        <span class="lbl">반별 명단에 성적 표시</span>
+        <div class="checks"><label><input type="checkbox" id="showScore">표시 (엑셀의 반별 시트에도 성적 열을 넣어요)</label></div>
+      </div>
+      <details class="opt adv">
+        <summary>고급: 출신 중학교별 성적 보정</summary>
+        <div>
+          <textarea id="adjust" rows="3" placeholder="한 줄에 한 학교. 예) ○○중 = -6&#10;△△중 = 4.5"></textarea>
+          <div class="hint">고교에 와서 성적이 오르는 학교는 +, 내려가는 학교는 − (단위: 백분율 %p). 보정한 성적으로 반 균형을 맞춰요.
+            출신 중학교를 고르게 나누면 학교별 차이는 반마다 저절로 상쇄되기 쉬워요. 실제 자료로 확인했을 때도 보정하지 않은 쪽이 고교 성적이 더 고르게 나온 경우가 있었어요. 지난 몇 년 자료로 학교별 경향이 뚜렷하게 확인될 때만 쓰세요.</div>
+          <div class="warn" id="adjustMsg"></div>
+        </div>
+      </details>
+    </div>
+    <div class="actions">
+      <button class="btn primary big" id="runBtn" type="button">반편성 실행</button>
+      <div class="progress" id="progress" hidden><div></div></div>
+    </div>
+  </section>
+
+  <!-- 3단계 -->
+  <section class="card" id="step3" hidden>
+    <h2><span class="num">3</span> 결과 확인·내려받기</h2>
+    <div class="summary" id="summary"></div>
+    <div class="actions left">
+      <button class="btn primary" id="xlsxBtn" type="button">엑셀로 내려받기</button>
+      <button class="btn" id="againBtn" type="button">다른 배정안 보기</button>
+      <button class="btn ghost" id="resetMoves" type="button" hidden>직접 옮긴 것 되돌리기</button>
+    </div>
+    <h3>반별 통계</h3>
+    <div class="tablewrap" id="stats"></div>
+    <h3>나누기 조건 확인</h3>
+    <div id="checks"></div>
+    <h3>반별 명단 <small>학생의 반을 바꾸면 통계가 바로 다시 계산돼요.</small></h3>
+    <div class="tabs" id="tabs" role="tablist"></div>
+    <div class="tablewrap" id="roster"></div>
+  </section>
+  <section class="card help" id="help">
+    <h2><span class="num">?</span> 사용 방법</h2>
+    <ol>
+      <li><b>명단 준비</b>: 한 줄에 학생 한 명, 첫 줄에 제목(성명, 성별, 출신학교, 성적 …)이 있는 엑셀이면 돼요. 입학 원서 접수대장을 그대로 올려도 돼요. 형식이 걱정되면 <b>빈 양식</b>을 받아 채워 주세요.</li>
+      <li><b>정원 외 학생</b>(특수교육대상자 등 성적 없이 배정할 학생)은 같은 파일의 다른 시트에 두고 1단계에서 그 시트를 고르면 돼요. 명단 시트에서 성적 칸이 빈 학생도 같은 방식으로 배정해요.</li>
+      <li><b>조건 고르기</b>: 학급 수와 나눌 조건을 고르고 <b>반편성 실행</b>을 누르면 1~2초 안에 결과가 나와요.</li>
+      <li><b>확인·수정</b>: 반별 통계에서 빨간 칸은 반 간 차이가 2명 이상인 곳이에요. 명단에서 학생의 반을 바꾸면 통계가 바로 다시 계산돼요. <b>다른 배정안 보기</b>를 누르면 조건은 같고 구성이 다른 안이 나와요.</li>
+      <li><b>내려받기</b>: 엑셀에는 전체 결과, 반별 나란히 보기(반편성표), 반별 통계, 나누기 확인, 원본+배정반, 반별 명단 시트가 들어 있어요.</li>
+    </ol>
+    <details>
+      <summary>어떻게 나누나요?</summary>
+      <p>정원 내 학생을 성적순으로 줄 세운 뒤 구간(기본 10구간)으로 자르고, 구간마다 반에 같은 수씩 지그재그로 넣어요. 그다음 같은 구간 학생끼리 반을 수십만 번 바꿔 보면서 반 평균·표준편차, 남녀 수, 출신 중학교별 인원, 같은 반 금지 조건을 가장 잘 맞추는 안을 골라요. 같은 반 금지 조건(동명이인, 형제자매, 직접 입력)은 다른 조건보다 훨씬 강하게 지켜요.</p>
+    </details>
+    <details>
+      <summary>개인정보는 안전한가요?</summary>
+      <p>파일은 이 브라우저 안에서만 읽고 계산해요. 이 페이지는 외부로 데이터를 보내는 기능이 아예 막혀 있고(보안 정책 connect-src 'none'), 어디에도 저장하지 않아요. 인터넷이 막힌 업무용 PC에서는 <b>오프라인용 파일</b>을 받아 더블클릭으로 열어 쓰면 돼요.</p>
+    </details>
+    <details>
+      <summary>형제자매는 어떻게 찾나요?</summary>
+      <p>보호자 연락처가 같은 학생을 형제자매로 봐요. 연락처가 다른 쌍둥이나 친척, 학교폭력 관련 분리 학생은 <b>같은 반이 되면 안 되는 학생</b> 칸에 직접 적어 주세요.</p>
+    </details>
+  </section>
+</main>
+<footer class="wrap foot">신입생 반편성 도우미 v1.0 · 누구나 무료로 쓰고 다른 학교와 나눌 수 있어요 (MIT 라이선스) · 파일 내용은 외부로 전송되지 않아요.</footer>
+<script src="vendor/xlsx.bundle.js"></script>
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
+
+

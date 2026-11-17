@@ -1,0 +1,2 @@
+xlsx-js-style 1.2.0 (https://github.com/gitbrent/xlsx-js-style) - Apache License 2.0
+Based on SheetJS Community Edition (https://sheetjs.com) - Apache License 2.0
